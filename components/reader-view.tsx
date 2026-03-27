@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect } from "react"
+import Image from "next/image"
 import { 
   Play, 
   Pause, 
@@ -11,10 +12,7 @@ import {
   Bookmark,
   ChevronLeft,
   MessageCircle,
-  Settings2,
-  Type,
-  Minus,
-  Plus
+  Settings2
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -43,6 +41,7 @@ interface ReaderViewProps {
     author: string
     type: string
     progress: number
+    cover: string
   }
   onBack: () => void
 }
@@ -101,6 +100,14 @@ export function ReaderView({ book, onBack }: ReaderViewProps) {
           <Button variant="ghost" size="icon" onClick={onBack} aria-label="Back to library">
             <ChevronLeft className="h-5 w-5" />
           </Button>
+          <div className="relative h-10 w-8 overflow-hidden rounded bg-muted">
+            <Image
+              src={book.cover}
+              alt={`Cover of ${book.title}`}
+              fill
+              className="object-cover"
+            />
+          </div>
           <div>
             <h2 className="font-medium text-foreground">{book.title}</h2>
             <p className="text-xs text-muted-foreground">{book.author}</p>

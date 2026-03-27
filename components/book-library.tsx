@@ -1,7 +1,8 @@
 "use client"
 
-import { Book, Headphones, Upload, Search, Clock, Star, ChevronRight } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import Image from "next/image"
+import { Book, Headphones, Upload, Search, Clock } from "lucide-react"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -15,7 +16,7 @@ const sampleBooks = [
     type: "ebook",
     progress: 45,
     duration: "4h 30m",
-    cover: "📚"
+    cover: "/images/books/great-gatsby.jpg"
   },
   {
     id: 2,
@@ -24,7 +25,7 @@ const sampleBooks = [
     type: "audiobook",
     progress: 0,
     duration: "11h 15m",
-    cover: "📖"
+    cover: "/images/books/pride-prejudice.jpg"
   },
   {
     id: 3,
@@ -33,7 +34,7 @@ const sampleBooks = [
     type: "ebook",
     progress: 78,
     duration: "8h 45m",
-    cover: "📕"
+    cover: "/images/books/1984.jpg"
   },
   {
     id: 4,
@@ -42,7 +43,7 @@ const sampleBooks = [
     type: "audiobook",
     progress: 23,
     duration: "10h 30m",
-    cover: "📗"
+    cover: "/images/books/to-kill-mockingbird.jpg"
   },
 ]
 
@@ -94,8 +95,13 @@ export function BookLibrary({ onSelectBook }: BookLibraryProps) {
                 aria-label={`Open ${book.title} by ${book.author}`}
               >
                 <CardContent className="p-4">
-                  <div className="mb-4 flex h-32 items-center justify-center rounded-lg bg-muted text-5xl">
-                    {book.cover}
+                  <div className="relative mb-4 h-40 w-full overflow-hidden rounded-lg bg-muted">
+                    <Image
+                      src={book.cover}
+                      alt={`Cover of ${book.title}`}
+                      fill
+                      className="object-cover transition-transform group-hover:scale-105"
+                    />
                   </div>
                   <div className="space-y-2">
                     <div className="flex items-start justify-between gap-2">
@@ -151,8 +157,13 @@ export function BookLibrary({ onSelectBook }: BookLibraryProps) {
                 onClick={() => onSelectBook(book)}
               >
                 <CardContent className="p-4">
-                  <div className="mb-4 flex h-32 items-center justify-center rounded-lg bg-muted text-5xl">
-                    {book.cover}
+                  <div className="relative mb-4 h-40 w-full overflow-hidden rounded-lg bg-muted">
+                    <Image
+                      src={book.cover}
+                      alt={`Cover of ${book.title}`}
+                      fill
+                      className="object-cover transition-transform group-hover:scale-105"
+                    />
                   </div>
                   <h3 className="truncate font-medium text-foreground">{book.title}</h3>
                   <p className="truncate text-sm text-muted-foreground">{book.author}</p>
@@ -171,8 +182,13 @@ export function BookLibrary({ onSelectBook }: BookLibraryProps) {
                 onClick={() => onSelectBook(book)}
               >
                 <CardContent className="p-4">
-                  <div className="mb-4 flex h-32 items-center justify-center rounded-lg bg-muted text-5xl">
-                    {book.cover}
+                  <div className="relative mb-4 h-40 w-full overflow-hidden rounded-lg bg-muted">
+                    <Image
+                      src={book.cover}
+                      alt={`Cover of ${book.title}`}
+                      fill
+                      className="object-cover transition-transform group-hover:scale-105"
+                    />
                   </div>
                   <h3 className="truncate font-medium text-foreground">{book.title}</h3>
                   <p className="truncate text-sm text-muted-foreground">{book.author}</p>
