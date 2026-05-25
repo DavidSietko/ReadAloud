@@ -14,3 +14,23 @@ next.user-config.*
 node_modules
 .next/
 .DS_Store
+.cache/
+dist/
+build/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Backend
+/backend/.venv
+/backend/*.db
+/backend/*.db-shm
+/backend/*.db-wal
+
+# Vite / frontend build
+.vite/
