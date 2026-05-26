@@ -14,9 +14,6 @@ class User(Base):
     google_id: Mapped[str | None] = mapped_column(
         String, unique=True, nullable=True, index=True
     )
-    github_id: Mapped[str | None] = mapped_column(
-        String, unique=True, nullable=True, index=True
-    )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     reading_progress: Mapped[list["ReadingProgress"]] = relationship(

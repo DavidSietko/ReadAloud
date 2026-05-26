@@ -19,16 +19,6 @@ oauth.register(
     client_kwargs={"scope": "openid email profile"},
 )
 
-oauth.register(
-    name="github",
-    client_id=settings.github_client_id,
-    client_secret=settings.github_client_secret,
-    access_token_url="https://github.com/login/oauth/access_token",
-    authorize_url="https://github.com/login/oauth/authorize",
-    api_base_url="https://api.github.com/",
-    client_kwargs={"scope": "user:email"},
-)
-
 
 @router.get("/google")
 async def login_google(request: Request):
@@ -56,40 +46,3 @@ async def auth_google_callback(request: Request, db: AsyncSession = Depends(get_
     )
 
 
-@router.get("/github")
-async def login_github(request: Request):
-    redirect_uri = request.url_for("auth_github_callback")
-    return await oauth.github.authorize_redirect(request, redirect_uri)
-
-
-@router.get("/github/callback", name="auth_github_callback")
-async def auth_github_callback(request: Request, db: AsyncSession = Depends(get_db)):
-    token = await oauth.github.authorize_access_token(request)
-
-    resp = await oauth.github.get("user", token=token)
-    profile = resp.json()
-
-    # GitHub may not expose a public email — fetch the primary verified one
-    email = profile.get("email")
-    if not email:
-        emails_resp = await oauth.github.get("user/emails", token=token)
-        emails = emails_resp.json()
-        primary = next(
-            (e for e in emails if e.get("primary") and e.get("verified")), None
-        )
-        email = primary["email"] if primary else f"{profile['login']}@github.local"
-
-    user = await get_or_create_user(
-        db,
-        provider="github",
-        user_info={
-            "id": str(profile["id"]),
-            "email": email,
-            "name": profile.get("name") or profile["login"],
-            "avatar_url": profile.get("avatar_url"),
-        },
-    )
-    access_token = create_access_token({"sub": str(user.id)})
-    return RedirectResponse(
-        f"{settings.frontend_url}/auth/callback?token={access_token}"
-    )
