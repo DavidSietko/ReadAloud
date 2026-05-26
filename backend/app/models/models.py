@@ -11,11 +11,17 @@ class User(Base):
     email: Mapped[str] = mapped_column(String, unique=True, index=True)
     name: Mapped[str] = mapped_column(String)
     avatar_url: Mapped[str | None] = mapped_column(String, nullable=True)
-    google_id: Mapped[str | None] = mapped_column(String, unique=True, nullable=True, index=True)
-    github_id: Mapped[str | None] = mapped_column(String, unique=True, nullable=True, index=True)
+    google_id: Mapped[str | None] = mapped_column(
+        String, unique=True, nullable=True, index=True
+    )
+    github_id: Mapped[str | None] = mapped_column(
+        String, unique=True, nullable=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
-    reading_progress: Mapped[list["ReadingProgress"]] = relationship(back_populates="user")
+    reading_progress: Mapped[list["ReadingProgress"]] = relationship(
+        back_populates="user"
+    )
     sessions: Mapped[list["ReadingSession"]] = relationship(back_populates="user")
 
 

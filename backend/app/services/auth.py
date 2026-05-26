@@ -12,8 +12,12 @@ bearer_scheme = HTTPBearer()
 
 
 def create_access_token(data: dict) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
-    return jwt.encode({**data, "exp": expire}, settings.secret_key, algorithm=settings.algorithm)
+    expire = datetime.now(timezone.utc) + timedelta(
+        minutes=settings.access_token_expire_minutes
+    )
+    return jwt.encode(
+        {**data, "exp": expire}, settings.secret_key, algorithm=settings.algorithm
+    )
 
 
 async def get_or_create_user(db: AsyncSession, provider: str, user_info: dict) -> User:
@@ -56,7 +60,9 @@ async def get_current_user(
     )
     try:
         payload = jwt.decode(
-            credentials.credentials, settings.secret_key, algorithms=[settings.algorithm]
+            credentials.credentials,
+            settings.secret_key,
+            algorithms=[settings.algorithm],
         )
         user_id: str = payload.get("sub")
         if user_id is None:

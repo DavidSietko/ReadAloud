@@ -1,6 +1,4 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.database import get_db
 from app.schemas.book import BookSearchResponse, BookResponse
 from app.services.gutenberg import GutenbergService
 from app.services.auth import get_current_user
@@ -37,6 +35,13 @@ async def get_book_text(
     """Return one text chunk of a book for the AI reader context."""
     content = await gutenberg.get_book_text(book_id, chunk=chunk)
     if content is None:
-        raise HTTPException(status_code=404, detail="Book text not available for this chunk")
+        raise HTTPException(
+            status_code=404, detail="Book text not available for this chunk"
+        )
     total = await gutenberg.get_chunk_count(book_id)
-    return {"book_id": book_id, "chunk": chunk, "total_chunks": total, "content": content}
+    return {
+        "book_id": book_id,
+        "chunk": chunk,
+        "total_chunks": total,
+        "content": content,
+    }

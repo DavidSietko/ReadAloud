@@ -21,8 +21,10 @@ class GutenbergService:
             cover_url=formats.get("image/jpeg"),
             formats=BookFormat(
                 epub=formats.get("application/epub+zip"),
-                text=formats.get("text/plain; charset=utf-8") or formats.get("text/plain"),
-                html=formats.get("text/html; charset=utf-8") or formats.get("text/html"),
+                text=formats.get("text/plain; charset=utf-8")
+                or formats.get("text/plain"),
+                html=formats.get("text/html; charset=utf-8")
+                or formats.get("text/html"),
             ),
         )
 

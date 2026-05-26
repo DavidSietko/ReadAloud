@@ -51,7 +51,9 @@ async def auth_google_callback(request: Request, db: AsyncSession = Depends(get_
         },
     )
     access_token = create_access_token({"sub": str(user.id)})
-    return RedirectResponse(f"{settings.frontend_url}/auth/callback?token={access_token}")
+    return RedirectResponse(
+        f"{settings.frontend_url}/auth/callback?token={access_token}"
+    )
 
 
 @router.get("/github")
@@ -72,7 +74,9 @@ async def auth_github_callback(request: Request, db: AsyncSession = Depends(get_
     if not email:
         emails_resp = await oauth.github.get("user/emails", token=token)
         emails = emails_resp.json()
-        primary = next((e for e in emails if e.get("primary") and e.get("verified")), None)
+        primary = next(
+            (e for e in emails if e.get("primary") and e.get("verified")), None
+        )
         email = primary["email"] if primary else f"{profile['login']}@github.local"
 
     user = await get_or_create_user(
@@ -86,4 +90,6 @@ async def auth_github_callback(request: Request, db: AsyncSession = Depends(get_
         },
     )
     access_token = create_access_token({"sub": str(user.id)})
-    return RedirectResponse(f"{settings.frontend_url}/auth/callback?token={access_token}")
+    return RedirectResponse(
+        f"{settings.frontend_url}/auth/callback?token={access_token}"
+    )

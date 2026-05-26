@@ -10,3 +10,5 @@ anthropic>=0.40.0
 ebooklib>=0.18
 python-multipart>=0.0.12
 itsdangerous>=2.2.0
+flake8
+ruff
