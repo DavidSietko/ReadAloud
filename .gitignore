@@ -35,3 +35,6 @@ __pycache__/
 
 # Vite / frontend build
 .vite/
+
+# Self-hosted Gutendex (cloned at Docker build time, not tracked in repo)
+/gutendex/

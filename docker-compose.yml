@@ -1,4 +1,44 @@
 services:
+  gutendex-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: gutendex
+      POSTGRES_USER: gutendex
+      POSTGRES_PASSWORD: gutendex_dev
+    volumes:
+      - gutendex_pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  gutendex:
+    build:
+      context: ./gutendex
+    environment:
+      DATABASE_HOST: gutendex-db
+      DATABASE_NAME: gutendex
+      DATABASE_USER: gutendex
+      DATABASE_PASSWORD: gutendex_dev
+      DATABASE_PORT: "5432"
+      SECRET_KEY: gutendex-dev-secret-not-for-production
+      ALLOWED_HOSTS: localhost,127.0.0.1,gutendex
+      DEBUG: "true"
+      ADMIN_EMAILS: admin@example.com
+      ADMIN_NAMES: Admin
+      MANAGER_EMAILS: manager@example.com
+      MANAGER_NAMES: Manager
+      EMAIL_HOST: localhost
+      EMAIL_HOST_ADDRESS: noreply@example.com
+      EMAIL_HOST_PASSWORD: ""
+      EMAIL_HOST_USER: ""
+      MEDIA_ROOT: /app/media
+      STATIC_ROOT: /app/staticfiles
+    ports:
+      - "8001:8001"
+    depends_on:
+      - gutendex-db
+    volumes:
+      - gutendex_catalog:/app/catalog_files
+    restart: unless-stopped
+
   backend:
     build:
       context: ./backend
@@ -10,6 +50,10 @@ services:
       - /app/.venv
     env_file:
       - ./backend/.env
+    environment:
+      - GUTENDEX_BASE=http://gutendex:8001
+    depends_on:
+      - gutendex
     restart: unless-stopped
 
   frontend:
@@ -27,3 +71,7 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
+
+volumes:
+  gutendex_pgdata:
+  gutendex_catalog:

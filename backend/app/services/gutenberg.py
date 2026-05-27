@@ -1,13 +1,13 @@
 import httpx
 from fastapi import HTTPException
 from app.schemas.book import BookResponse, BookSearchResponse, BookAuthor, BookFormat
+from app.config import settings
 
-GUTENDEX_BASE = "https://gutendex.com"
 CHUNK_SIZE = 32_000  # ~8k tokens per chunk for AI context
 
 
 def _make_client() -> httpx.AsyncClient:
-    return httpx.AsyncClient(base_url=GUTENDEX_BASE, timeout=15.0)
+    return httpx.AsyncClient(base_url=settings.gutendex_base, timeout=15.0)
 
 
 class GutenbergService:

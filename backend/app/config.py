@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     google_client_secret: str = ""
 
     frontend_url: str = "http://localhost:5173"
+    gutendex_base: str = "https://gutendex.com"
 
     anthropic_api_key: str = ""
 
