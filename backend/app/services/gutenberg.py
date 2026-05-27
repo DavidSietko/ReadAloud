@@ -1,14 +1,16 @@
 import httpx
+from fastapi import HTTPException
 from app.schemas.book import BookResponse, BookSearchResponse, BookAuthor, BookFormat
 
 GUTENDEX_BASE = "https://gutendex.com"
 CHUNK_SIZE = 32_000  # ~8k tokens per chunk for AI context
 
 
-class GutenbergService:
-    def __init__(self):
-        self._client = httpx.AsyncClient(base_url=GUTENDEX_BASE, timeout=15.0)
+def _make_client() -> httpx.AsyncClient:
+    return httpx.AsyncClient(base_url=GUTENDEX_BASE, timeout=15.0)
 
+
+class GutenbergService:
     def _parse_book(self, data: dict) -> BookResponse:
         formats = data.get("formats", {})
         return BookResponse(
@@ -41,9 +43,17 @@ class GutenbergService:
         if topic:
             params["topic"] = topic
 
-        resp = await self._client.get("/books/", params=params)
-        resp.raise_for_status()
-        data = resp.json()
+        try:
+            async with _make_client() as client:
+                resp = await client.get("/books/", params=params)
+                resp.raise_for_status()
+                data = resp.json()
+        except httpx.TimeoutException:
+            raise HTTPException(status_code=504, detail="Book service timed out")
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(status_code=502, detail=f"Book service error: {e.response.status_code}")
+        except httpx.HTTPError:
+            raise HTTPException(status_code=502, detail="Book service unavailable")
 
         return BookSearchResponse(
             count=data["count"],
@@ -53,37 +63,47 @@ class GutenbergService:
         )
 
     async def get_book(self, book_id: int) -> BookResponse | None:
-        resp = await self._client.get(f"/books/{book_id}/")
-        if resp.status_code == 404:
-            return None
-        resp.raise_for_status()
-        return self._parse_book(resp.json())
+        try:
+            async with _make_client() as client:
+                resp = await client.get(f"/books/{book_id}/")
+                if resp.status_code == 404:
+                    return None
+                resp.raise_for_status()
+                return self._parse_book(resp.json())
+        except httpx.TimeoutException:
+            raise HTTPException(status_code=504, detail="Book service timed out")
+        except httpx.HTTPError:
+            raise HTTPException(status_code=502, detail="Book service unavailable")
 
     async def get_book_text(self, book_id: int, chunk: int = 0) -> str | None:
-        """Fetch plain text and return one chunk suitable for AI context (~32k chars)."""
         book = await self.get_book(book_id)
         if not book or not book.formats.text:
             return None
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.get(book.formats.text)
-            if resp.status_code != 200:
-                return None
-            text = resp.text
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.get(book.formats.text)
+                if resp.status_code != 200:
+                    return None
+                text = resp.text
+        except httpx.HTTPError:
+            return None
 
-        chunks = [text[i : i + CHUNK_SIZE] for i in range(0, len(text), CHUNK_SIZE)]
+        chunks = [text[i: i + CHUNK_SIZE] for i in range(0, len(text), CHUNK_SIZE)]
         if chunk >= len(chunks):
             return None
         return chunks[chunk]
 
     async def get_chunk_count(self, book_id: int) -> int | None:
-        """Return the total number of chunks for a book."""
         book = await self.get_book(book_id)
         if not book or not book.formats.text:
             return None
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.get(book.formats.text)
-            if resp.status_code != 200:
-                return None
-            return max(1, len(resp.text) // CHUNK_SIZE + 1)
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                resp = await client.get(book.formats.text)
+                if resp.status_code != 200:
+                    return None
+                return max(1, len(resp.text) // CHUNK_SIZE + 1)
+        except httpx.HTTPError:
+            return None

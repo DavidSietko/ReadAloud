@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ThemeProvider } from '@/components/theme-provider'
 import { Toaster } from '@/components/ui/sonner'
 import { ProtectedRoute } from '@/components/protected-route'
-import HomePage from '@/pages/HomePage'
+import LibraryPage from '@/pages/LibraryPage'
 import LoginPage from '@/pages/LoginPage'
 import AuthCallback from '@/pages/AuthCallback'
 
@@ -21,7 +21,7 @@ export default function App() {
               path="/"
               element={
                 <ProtectedRoute>
-                  <HomePage />
+                  <LibraryPage />
                 </ProtectedRoute>
               }
             />
