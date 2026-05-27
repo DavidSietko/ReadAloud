@@ -14,6 +14,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: { ...authHeaders(), ...init?.headers },
   })
+  if (res.status === 401) {
+    localStorage.removeItem('access_token')
+    window.location.href = '/login'
+    throw new Error('Unauthorized')
+  }
   if (!res.ok) throw new Error(`API error ${res.status}`)
   return res.json() as Promise<T>
 }
