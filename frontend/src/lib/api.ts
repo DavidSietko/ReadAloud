@@ -23,9 +23,6 @@ export const api = {
     loginGoogle() {
       window.location.href = `${API_URL}/auth/google`
     },
-    loginGithub() {
-      window.location.href = `${API_URL}/auth/github`
-    },
     logout() {
       localStorage.removeItem('access_token')
     },
