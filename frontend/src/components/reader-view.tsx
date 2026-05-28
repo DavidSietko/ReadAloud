@@ -52,8 +52,26 @@ export function ReaderView({ book, onBack }: ReaderViewProps) {
   const [voiceName, setVoiceName] = useState('')
   const [pitch, setPitch] = useState(1)
 
-  // Tracks whether onboundary events are firing (Chrome/Edge support)
   const boundaryFired = useRef(false)
+  const isPlayingRef = useRef(false)
+  const currentWordRef = useRef(0)
+
+  // Keep refs in sync with state so effects can read latest values without deps
+  useEffect(() => { isPlayingRef.current = isPlaying }, [isPlaying])
+  useEffect(() => { currentWordRef.current = highlightedWordIndex }, [highlightedWordIndex])
+
+  // Always-current speech settings — speakFromWord reads this instead of closing over state
+  const speechSettings = useRef({ speed, volume, isMuted, pitch, voiceName })
+  useEffect(() => {
+    speechSettings.current = { speed, volume, isMuted, pitch, voiceName }
+  }, [speed, volume, isMuted, pitch, voiceName])
+
+  // Restart speech when any setting changes while playing
+  useEffect(() => {
+    if (isPlayingRef.current) {
+      speakFromWord(currentWordRef.current)
+    }
+  }, [speed, volume, isMuted, pitch, voiceName]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Cancel speech when unmounting
   useEffect(() => {
@@ -158,6 +176,7 @@ export function ReaderView({ book, onBack }: ReaderViewProps) {
     const remaining = words.slice(fromWord).join(' ')
     if (!remaining.trim()) return
 
+    const { speed, volume, isMuted, pitch, voiceName } = speechSettings.current
     const utter = new SpeechSynthesisUtterance(remaining)
     utter.rate = speed
     utter.volume = isMuted ? 0 : volume / 100
@@ -183,7 +202,7 @@ export function ReaderView({ book, onBack }: ReaderViewProps) {
     }
 
     window.speechSynthesis.speak(utter)
-  }, [words, speed, volume, isMuted, pitch, voiceName])
+  }, [words])
 
   const handlePlayPause = () => {
     if (isPlaying) {

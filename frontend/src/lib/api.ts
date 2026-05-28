@@ -30,6 +30,20 @@ export interface ReadingProgressData {
   last_read_at: string
 }
 
+export interface SessionMessageData {
+  id: number
+  role: string
+  content: string
+  created_at: string
+}
+
+export interface SessionData {
+  id: number
+  gutenberg_id: number
+  created_at: string
+  messages: SessionMessageData[]
+}
+
 export const api = {
   auth: {
     loginGoogle() {
@@ -54,6 +68,14 @@ export const api = {
     saveProgress: (bookId: number, data: { current_chunk: number; progress: number }) =>
       request<ReadingProgressData>(`/users/progress/${bookId}`, {
         method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      }),
+    getSession: (bookId: number) =>
+      request<SessionData>(`/users/sessions/${bookId}`),
+    saveMessage: (bookId: number, data: { role: 'user' | 'assistant'; content: string }) =>
+      request<SessionMessageData>(`/users/sessions/${bookId}/messages`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       }),

@@ -14,6 +14,8 @@ interface Message {
   timestamp: Date
 }
 
+const GREETING_ID = 'greeting'
+
 const suggestedQuestions = [
   'What does this passage mean?',
   'Can you explain that word?',
@@ -28,18 +30,37 @@ interface ChatPanelProps {
 }
 
 export function ChatPanel({ bookTitle, bookId, bookContext }: ChatPanelProps) {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 'greeting',
-      role: 'assistant',
-      content: `Hi! I'm your reading companion for "${bookTitle}". Feel free to ask me anything about the story, vocabulary, or just chat while we read together.`,
-      timestamp: new Date(),
-    },
-  ])
+  const greeting: Message = {
+    id: GREETING_ID,
+    role: 'assistant',
+    content: `Hi! I'm your reading companion for "${bookTitle}". Feel free to ask me anything about the story, vocabulary, or just chat while we read together.`,
+    timestamp: new Date(),
+  }
+
+  const [messages, setMessages] = useState<Message[]>([greeting])
   const [input, setInput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
+  const [sessionLoaded, setSessionLoaded] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
+
+  // Load saved session on mount
+  useEffect(() => {
+    api.users.getSession(bookId).then(session => {
+      if (session.messages.length > 0) {
+        setMessages([
+          greeting,
+          ...session.messages.map(m => ({
+            id: m.id.toString(),
+            role: m.role as 'user' | 'assistant',
+            content: m.content,
+            timestamp: new Date(m.created_at),
+          })),
+        ])
+      }
+      setSessionLoaded(true)
+    }).catch(() => setSessionLoaded(true))
+  }, [bookId])
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -61,9 +82,12 @@ export function ChatPanel({ bookTitle, bookId, bookContext }: ChatPanelProps) {
     }
     setMessages(prev => [...prev, userMsg])
 
-    // Build history from all messages except the initial greeting
+    // Save user message immediately
+    api.users.saveMessage(bookId, { role: 'user', content: userText }).catch(() => {})
+
+    // Build history from saved messages (exclude greeting)
     const history: ChatMessage[] = messages
-      .filter(m => m.id !== 'greeting')
+      .filter(m => m.id !== GREETING_ID)
       .map(m => ({ role: m.role, content: m.content }))
     history.push({ role: 'user', content: userText })
 
@@ -75,6 +99,7 @@ export function ChatPanel({ bookTitle, bookId, bookContext }: ChatPanelProps) {
     setIsStreaming(true)
 
     abortRef.current = new AbortController()
+    let accumulated = ''
 
     try {
       const res = await api.ai.chat(
@@ -85,7 +110,6 @@ export function ChatPanel({ bookTitle, bookId, bookContext }: ChatPanelProps) {
 
       const reader = res.body!.getReader()
       const decoder = new TextDecoder()
-      let accumulated = ''
 
       while (true) {
         const { done, value } = await reader.read()
@@ -100,6 +124,11 @@ export function ChatPanel({ bookTitle, bookId, bookContext }: ChatPanelProps) {
             prev.map(m => m.id === assistantId ? { ...m, content: accumulated } : m)
           )
         }
+      }
+
+      // Save assistant message after streaming completes
+      if (accumulated) {
+        api.users.saveMessage(bookId, { role: 'assistant', content: accumulated }).catch(() => {})
       }
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') return
@@ -119,40 +148,44 @@ export function ChatPanel({ bookTitle, bookId, bookContext }: ChatPanelProps) {
     <div className="flex h-full flex-col">
       <ScrollArea className="flex-1 p-4" ref={scrollRef}>
         <div className="space-y-4">
-          {messages.map((message) => (
-            <div
-              key={message.id}
-              className={`flex gap-3 ${message.role === 'user' ? 'flex-row-reverse' : ''}`}
-            >
-              <Avatar className="h-8 w-8 shrink-0">
-                <AvatarFallback
-                  className={
-                    message.role === 'assistant'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted'
-                  }
-                >
-                  {message.role === 'assistant' ? 'AI' : 'You'}
-                </AvatarFallback>
-              </Avatar>
+          {!sessionLoaded ? (
+            <p className="text-center text-sm text-muted-foreground py-4">Loading history…</p>
+          ) : (
+            messages.map((message) => (
               <div
-                className={`rounded-2xl px-4 py-2 max-w-[80%] ${
-                  message.role === 'user'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-foreground'
-                }`}
+                key={message.id}
+                className={`flex gap-3 ${message.role === 'user' ? 'flex-row-reverse' : ''}`}
               >
-                <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
-                <p
-                  className={`mt-1 text-xs ${
-                    message.role === 'user' ? 'text-primary-foreground/70' : 'text-muted-foreground'
+                <Avatar className="h-8 w-8 shrink-0">
+                  <AvatarFallback
+                    className={
+                      message.role === 'assistant'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted'
+                    }
+                  >
+                    {message.role === 'assistant' ? 'AI' : 'You'}
+                  </AvatarFallback>
+                </Avatar>
+                <div
+                  className={`rounded-2xl px-4 py-2 max-w-[80%] ${
+                    message.role === 'user'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-foreground'
                   }`}
                 >
-                  {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </p>
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
+                  <p
+                    className={`mt-1 text-xs ${
+                      message.role === 'user' ? 'text-primary-foreground/70' : 'text-muted-foreground'
+                    }`}
+                  >
+                    {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </p>
+                </div>
               </div>
-            </div>
-          ))}
+            ))
+          )}
 
           {isStreaming && messages[messages.length - 1]?.content === '' && (
             <div className="flex gap-3">
