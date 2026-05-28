@@ -17,7 +17,6 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Slider } from '@/components/ui/slider'
-import { Badge } from '@/components/ui/badge'
 import {
   Sheet,
   SheetContent,
@@ -294,16 +293,18 @@ export function ReaderView({ book, onBack }: ReaderViewProps) {
                 <SheetTitle>Voice & Reading Settings</SheetTitle>
                 <SheetDescription>Customize how your AI companion reads to you</SheetDescription>
               </SheetHeader>
-              <VoiceSettings
-                speed={speed}
-                onSpeedChange={setSpeed}
-                fontSize={fontSize}
-                onFontSizeChange={setFontSize}
-                voiceName={voiceName}
-                onVoiceChange={setVoiceName}
-                pitch={pitch}
-                onPitchChange={setPitch}
-              />
+              <div className="flex-1 overflow-y-auto px-1 pb-6">
+                <VoiceSettings
+                  speed={speed}
+                  onSpeedChange={setSpeed}
+                  fontSize={fontSize}
+                  onFontSizeChange={setFontSize}
+                  voiceName={voiceName}
+                  onVoiceChange={setVoiceName}
+                  pitch={pitch}
+                  onPitchChange={setPitch}
+                />
+              </div>
             </SheetContent>
           </Sheet>
         </div>
@@ -466,9 +467,19 @@ export function ReaderView({ book, onBack }: ReaderViewProps) {
           </div>
 
           <div className="flex items-center gap-2">
-            <Badge variant="secondary" className="font-mono">
+            <Button
+              variant="secondary"
+              size="sm"
+              className="font-mono min-w-[52px]"
+              onClick={() => {
+                const options = [0.5, 0.75, 1, 1.25, 1.5, 2]
+                const next = options[(options.indexOf(speed) + 1) % options.length]
+                setSpeed(next)
+              }}
+              aria-label="Cycle reading speed"
+            >
               {speed}x
-            </Badge>
+            </Button>
             <Button
               variant={showChat ? 'default' : 'ghost'}
               size="icon"

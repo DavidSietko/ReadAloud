@@ -31,13 +31,26 @@ export function VoiceSettings({
   useEffect(() => {
     const load = () => {
       const all = window.speechSynthesis.getVoices()
+      if (!all.length) return false
       const en = all.filter(v => v.lang.startsWith('en'))
       const list = en.length ? en : all
       setVoices(list)
       if (!voiceName && list.length) onVoiceChange(list[0].name)
+      return true
     }
-    load()
-    window.speechSynthesis.onvoiceschanged = load
+
+    if (!load()) {
+      // Voices not ready yet — wait for the event and also poll as fallback
+      window.speechSynthesis.onvoiceschanged = load
+      const t1 = setTimeout(load, 100)
+      const t2 = setTimeout(load, 500)
+      return () => {
+        window.speechSynthesis.onvoiceschanged = null
+        clearTimeout(t1)
+        clearTimeout(t2)
+      }
+    }
+
     return () => { window.speechSynthesis.onvoiceschanged = null }
   }, [])
 
