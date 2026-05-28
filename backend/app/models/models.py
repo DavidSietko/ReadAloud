@@ -28,7 +28,8 @@ class ReadingProgress(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     gutenberg_id: Mapped[int] = mapped_column(Integer, index=True)
-    progress: Mapped[float] = mapped_column(Float, default=0.0)  # 0.0–1.0
+    current_chunk: Mapped[int] = mapped_column(Integer, default=0)
+    progress: Mapped[float] = mapped_column(Float, default=0.0)  # 0.0–1.0 within current_chunk
     last_read_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     user: Mapped["User"] = relationship(back_populates="reading_progress")

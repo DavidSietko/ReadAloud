@@ -23,6 +23,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>
 }
 
+export interface ReadingProgressData {
+  gutenberg_id: number
+  current_chunk: number
+  progress: number
+  last_read_at: string
+}
+
 export const api = {
   auth: {
     loginGoogle() {
@@ -42,6 +49,14 @@ export const api = {
 
   users: {
     me: () => request<UserProfile>('/users/me'),
+    getProgress: (bookId: number) =>
+      request<ReadingProgressData | null>(`/users/progress/${bookId}`),
+    saveProgress: (bookId: number, data: { current_chunk: number; progress: number }) =>
+      request<ReadingProgressData>(`/users/progress/${bookId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      }),
   },
 
   books: {
