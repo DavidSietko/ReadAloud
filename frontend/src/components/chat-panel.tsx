@@ -2,7 +2,6 @@ import { useState, useRef, useEffect } from 'react'
 import { Send, Mic, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { api } from '@/lib/api'
 import type { ChatMessage } from '@/lib/api'
@@ -41,7 +40,7 @@ export function ChatPanel({ bookTitle, bookId, bookContext }: ChatPanelProps) {
   const [input, setInput] = useState('')
   const [isStreaming, setIsStreaming] = useState(false)
   const [sessionLoaded, setSessionLoaded] = useState(false)
-  const scrollRef = useRef<HTMLDivElement>(null)
+  const bottomRef = useRef<HTMLDivElement>(null)
   const abortRef = useRef<AbortController | null>(null)
 
   // Load saved session on mount
@@ -63,10 +62,8 @@ export function ChatPanel({ bookTitle, bookId, bookContext }: ChatPanelProps) {
   }, [bookId])
 
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-    }
-  }, [messages])
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, isStreaming])
 
   const handleSend = async (text?: string) => {
     const userText = (text ?? input).trim()
@@ -146,7 +143,7 @@ export function ChatPanel({ bookTitle, bookId, bookContext }: ChatPanelProps) {
 
   return (
     <div className="flex h-full flex-col">
-      <ScrollArea className="flex-1 p-4" ref={scrollRef}>
+      <div className="flex-1 overflow-y-auto min-h-0 p-4">
         <div className="space-y-4">
           {!sessionLoaded ? (
             <p className="text-center text-sm text-muted-foreground py-4">Loading history…</p>
@@ -187,6 +184,8 @@ export function ChatPanel({ bookTitle, bookId, bookContext }: ChatPanelProps) {
             ))
           )}
 
+          <div ref={bottomRef} />
+
           {isStreaming && messages[messages.length - 1]?.content === '' && (
             <div className="flex gap-3">
               <Avatar className="h-8 w-8 shrink-0">
@@ -202,7 +201,7 @@ export function ChatPanel({ bookTitle, bookId, bookContext }: ChatPanelProps) {
             </div>
           )}
         </div>
-      </ScrollArea>
+      </div>
 
       <div className="border-t px-4 py-3">
         <div className="mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
