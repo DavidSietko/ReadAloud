@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Play,
@@ -49,6 +49,16 @@ export function ReaderView({ book, onBack }: ReaderViewProps) {
   const [highlightedWordIndex, setHighlightedWordIndex] = useState(0)
   const [chunk, setChunk] = useState(0)
   const [progressRestored, setProgressRestored] = useState(false)
+  const [voiceName, setVoiceName] = useState('')
+  const [pitch, setPitch] = useState(1)
+
+  // Tracks whether onboundary events are firing (Chrome/Edge support)
+  const boundaryFired = useRef(false)
+
+  // Cancel speech when unmounting
+  useEffect(() => {
+    return () => window.speechSynthesis.cancel()
+  }, [])
 
   // Load saved progress first to know which chunk to start on
   const { status: progressStatus, data: savedProgress } = useQuery({
@@ -60,7 +70,6 @@ export function ReaderView({ book, onBack }: ReaderViewProps) {
 
   const progressSettled = progressStatus === 'success' || progressStatus === 'error'
 
-  // Restore chunk and word position once progress is loaded
   useEffect(() => {
     if (progressRestored || !progressSettled) return
     if (savedProgress) {
@@ -69,7 +78,6 @@ export function ReaderView({ book, onBack }: ReaderViewProps) {
     setProgressRestored(true)
   }, [progressSettled, savedProgress, progressRestored])
 
-  // Fetch book text for the current chunk
   const { data: textData, isLoading: textLoading, isError: textError } = useQuery({
     queryKey: ['book-text', book.id, chunk],
     queryFn: () => api.books.getText(book.id, chunk),
@@ -77,11 +85,10 @@ export function ReaderView({ book, onBack }: ReaderViewProps) {
     staleTime: Infinity,
   })
 
-  // Restore word position after text loads for the saved chunk
   useEffect(() => {
     if (!textData || !savedProgress || savedProgress.current_chunk !== chunk) return
-    const words = textData.content.split(/\s+/).filter(Boolean)
-    const wordIdx = Math.floor(savedProgress.progress * words.length)
+    const w = textData.content.split(/\s+/).filter(Boolean)
+    const wordIdx = Math.floor(savedProgress.progress * w.length)
     setHighlightedWordIndex(wordIdx)
     setCurrentPosition(wordIdx * 0.4)
   }, [textData, savedProgress, chunk])
@@ -121,24 +128,72 @@ export function ReaderView({ book, onBack }: ReaderViewProps) {
       return seg
     })
   }, [text])
+
   const firstAuthor = book.authors[0]?.name ?? 'Unknown'
 
+  // Fallback timer — only advances words when onboundary isn't firing
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>
     if (isPlaying) {
       interval = setInterval(() => {
-        setHighlightedWordIndex((prev) => {
+        if (boundaryFired.current) return
+        setHighlightedWordIndex(prev => {
           if (prev >= words.length - 1) {
             setIsPlaying(false)
+            window.speechSynthesis.cancel()
             return 0
           }
           return prev + 1
         })
-        setCurrentPosition((prev) => Math.min(prev + speed * 0.4, totalDuration))
+        setCurrentPosition(prev => Math.min(prev + speed * 0.4, totalDuration))
       }, 400 / speed)
     }
     return () => clearInterval(interval)
   }, [isPlaying, speed, words.length, totalDuration])
+
+  const speakFromWord = useCallback((fromWord: number) => {
+    window.speechSynthesis.cancel()
+    boundaryFired.current = false
+
+    const remaining = words.slice(fromWord).join(' ')
+    if (!remaining.trim()) return
+
+    const utter = new SpeechSynthesisUtterance(remaining)
+    utter.rate = speed
+    utter.volume = isMuted ? 0 : volume / 100
+    utter.pitch = pitch
+
+    const allVoices = window.speechSynthesis.getVoices()
+    const voice = allVoices.find(v => v.name === voiceName)
+    if (voice) utter.voice = voice
+
+    utter.onboundary = (e) => {
+      if (e.name !== 'word') return
+      boundaryFired.current = true
+      const before = remaining.slice(0, e.charIndex).trim()
+      const count = before === '' ? 0 : before.split(/\s+/).length
+      const gi = fromWord + count
+      setHighlightedWordIndex(gi)
+      setCurrentPosition(gi * 0.4)
+    }
+
+    utter.onend = () => setIsPlaying(false)
+    utter.onerror = (e) => {
+      if (e.error !== 'interrupted') setIsPlaying(false)
+    }
+
+    window.speechSynthesis.speak(utter)
+  }, [words, speed, volume, isMuted, pitch, voiceName])
+
+  const handlePlayPause = () => {
+    if (isPlaying) {
+      window.speechSynthesis.cancel()
+      setIsPlaying(false)
+    } else {
+      speakFromWord(highlightedWordIndex)
+      setIsPlaying(true)
+    }
+  }
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
@@ -147,6 +202,7 @@ export function ReaderView({ book, onBack }: ReaderViewProps) {
   }
 
   const goToChunk = (next: number) => {
+    window.speechSynthesis.cancel()
     setIsPlaying(false)
     setHighlightedWordIndex(0)
     setCurrentPosition(0)
@@ -156,6 +212,20 @@ export function ReaderView({ book, onBack }: ReaderViewProps) {
   const handleBookmark = () => {
     const progress = words.length > 0 ? highlightedWordIndex / words.length : 0
     saveProgressMutation.mutate({ current_chunk: chunk, progress })
+  }
+
+  const skipBack = () => {
+    const newIdx = Math.max(0, highlightedWordIndex - 10)
+    setHighlightedWordIndex(newIdx)
+    setCurrentPosition(newIdx * 0.4)
+    if (isPlaying) speakFromWord(newIdx)
+  }
+
+  const skipForward = () => {
+    const newIdx = Math.min(words.length - 1, highlightedWordIndex + 10)
+    setHighlightedWordIndex(newIdx)
+    setCurrentPosition(newIdx * 0.4)
+    if (isPlaying) speakFromWord(newIdx)
   }
 
   return (
@@ -210,6 +280,10 @@ export function ReaderView({ book, onBack }: ReaderViewProps) {
                 onSpeedChange={setSpeed}
                 fontSize={fontSize}
                 onFontSizeChange={setFontSize}
+                voiceName={voiceName}
+                onVoiceChange={setVoiceName}
+                pitch={pitch}
+                onPitchChange={setPitch}
               />
             </SheetContent>
           </Sheet>
@@ -267,7 +341,7 @@ export function ReaderView({ book, onBack }: ReaderViewProps) {
 
         {showChat && (
           <div className="hidden w-96 border-l bg-card md:block">
-            <ChatPanel bookTitle={book.title} />
+            <ChatPanel bookTitle={book.title} bookId={book.id} bookContext={text} />
           </div>
         )}
       </div>
@@ -281,8 +355,10 @@ export function ReaderView({ book, onBack }: ReaderViewProps) {
             max={totalDuration}
             step={0.1}
             onValueChange={([value]) => {
+              const newWordIdx = Math.floor(value / 0.4)
               setCurrentPosition(value)
-              setHighlightedWordIndex(Math.floor(value / 0.4))
+              setHighlightedWordIndex(newWordIdx)
+              if (isPlaying) speakFromWord(newWordIdx)
             }}
             className="w-full"
             aria-label="Reading progress"
@@ -346,10 +422,7 @@ export function ReaderView({ book, onBack }: ReaderViewProps) {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => {
-                setHighlightedWordIndex(Math.max(0, highlightedWordIndex - 10))
-                setCurrentPosition(Math.max(0, currentPosition - 4))
-              }}
+              onClick={skipBack}
               aria-label="Skip back"
             >
               <SkipBack className="h-5 w-5" />
@@ -357,7 +430,7 @@ export function ReaderView({ book, onBack }: ReaderViewProps) {
             <Button
               size="lg"
               className="h-14 w-14 rounded-full"
-              onClick={() => setIsPlaying(!isPlaying)}
+              onClick={handlePlayPause}
               disabled={textLoading || !text}
               aria-label={isPlaying ? 'Pause' : 'Play'}
             >
@@ -366,10 +439,7 @@ export function ReaderView({ book, onBack }: ReaderViewProps) {
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => {
-                setHighlightedWordIndex(Math.min(words.length - 1, highlightedWordIndex + 10))
-                setCurrentPosition(Math.min(totalDuration, currentPosition + 4))
-              }}
+              onClick={skipForward}
               aria-label="Skip forward"
             >
               <SkipForward className="h-5 w-5" />
@@ -407,7 +477,7 @@ export function ReaderView({ book, onBack }: ReaderViewProps) {
           <SheetHeader>
             <SheetTitle>Talk to Your Reading Companion</SheetTitle>
           </SheetHeader>
-          <ChatPanel bookTitle={book.title} />
+          <ChatPanel bookTitle={book.title} bookId={book.id} bookContext={text} />
         </SheetContent>
       </Sheet>
     </div>

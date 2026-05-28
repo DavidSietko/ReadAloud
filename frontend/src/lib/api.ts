@@ -74,11 +74,12 @@ export const api = {
   },
 
   ai: {
-    chat: (req: ChatRequest) =>
+    chat: (req: ChatRequest, signal?: AbortSignal) =>
       fetch(`${API_URL}/ai/chat`, {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
         body: JSON.stringify(req),
+        signal,
       }),
   },
 }

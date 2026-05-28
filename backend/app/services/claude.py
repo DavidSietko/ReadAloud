@@ -27,7 +27,14 @@ class ClaudeService:
         history: list[dict],
     ) -> AsyncGenerator[str, None]:
         messages = [*history, {"role": "user", "content": user_message}]
-        system = f"{SYSTEM_PROMPT}\n\n<book_context>\n{book_context}\n</book_context>"
+        system = [
+            {"type": "text", "text": SYSTEM_PROMPT},
+            {
+                "type": "text",
+                "text": f"<book_context>\n{book_context}\n</book_context>",
+                "cache_control": {"type": "ephemeral"},
+            },
+        ]
 
         async with self._client.messages.stream(
             model="claude-sonnet-4-6",

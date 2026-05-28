@@ -1,63 +1,92 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Check, Minus, Plus, Volume2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Slider } from '@/components/ui/slider'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Separator } from '@/components/ui/separator'
-
-const voices = [
-  { id: 'emma', name: 'Emma', description: 'Warm, friendly female voice', accent: 'American' },
-  { id: 'james', name: 'James', description: 'Deep, calm male voice', accent: 'British' },
-  { id: 'sofia', name: 'Sofia', description: 'Gentle, expressive female voice', accent: 'Spanish' },
-  { id: 'alex', name: 'Alex', description: 'Neutral, clear voice', accent: 'American' },
-  { id: 'maya', name: 'Maya', description: 'Soft, soothing female voice', accent: 'Indian' },
-  { id: 'oliver', name: 'Oliver', description: 'Cheerful male voice', accent: 'Australian' },
-]
 
 interface VoiceSettingsProps {
   speed: number
   onSpeedChange: (speed: number) => void
   fontSize: number
   onFontSizeChange: (size: number) => void
+  voiceName: string
+  onVoiceChange: (name: string) => void
+  pitch: number
+  onPitchChange: (pitch: number) => void
 }
 
-export function VoiceSettings({ speed, onSpeedChange, fontSize, onFontSizeChange }: VoiceSettingsProps) {
-  const [selectedVoice, setSelectedVoice] = useState('emma')
-  const [pitch, setPitch] = useState(50)
+export function VoiceSettings({
+  speed,
+  onSpeedChange,
+  fontSize,
+  onFontSizeChange,
+  voiceName,
+  onVoiceChange,
+  pitch,
+  onPitchChange,
+}: VoiceSettingsProps) {
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([])
+
+  useEffect(() => {
+    const load = () => {
+      const all = window.speechSynthesis.getVoices()
+      const en = all.filter(v => v.lang.startsWith('en'))
+      const list = en.length ? en : all
+      setVoices(list)
+      if (!voiceName && list.length) onVoiceChange(list[0].name)
+    }
+    load()
+    window.speechSynthesis.onvoiceschanged = load
+    return () => { window.speechSynthesis.onvoiceschanged = null }
+  }, [])
+
+  const handlePreview = () => {
+    window.speechSynthesis.cancel()
+    const utter = new SpeechSynthesisUtterance('The quick brown fox jumps over the lazy dog.')
+    utter.rate = speed
+    utter.pitch = pitch
+    const voice = window.speechSynthesis.getVoices().find(v => v.name === voiceName)
+    if (voice) utter.voice = voice
+    window.speechSynthesis.speak(utter)
+  }
 
   const speedOptions = [0.5, 0.75, 1, 1.25, 1.5, 2]
+  const pitchSlider = Math.round(pitch * 50)
 
   return (
     <div className="mt-6 space-y-6">
       <div className="space-y-3">
         <Label className="text-base font-medium">Voice</Label>
-        <RadioGroup value={selectedVoice} onValueChange={setSelectedVoice} className="grid gap-2">
+        <div className="grid gap-2 max-h-64 overflow-y-auto pr-1">
           {voices.map((voice) => (
             <Label
-              key={voice.id}
-              htmlFor={voice.id}
+              key={voice.name}
+              htmlFor={voice.name}
               className={`flex cursor-pointer items-center justify-between rounded-lg border p-3 transition-colors ${
-                selectedVoice === voice.id
+                voiceName === voice.name
                   ? 'border-primary bg-primary/5'
                   : 'border-border hover:bg-muted/50'
               }`}
+              onClick={() => onVoiceChange(voice.name)}
             >
               <div className="flex items-center gap-3">
-                <RadioGroupItem value={voice.id} id={voice.id} className="sr-only" />
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted text-lg font-medium text-muted-foreground">
                   {voice.name[0]}
                 </div>
                 <div>
                   <p className="font-medium text-foreground">{voice.name}</p>
-                  <p className="text-xs text-muted-foreground">{voice.description}</p>
+                  <p className="text-xs text-muted-foreground">{voice.lang}</p>
                 </div>
               </div>
-              {selectedVoice === voice.id && <Check className="h-5 w-5 text-primary" />}
+              {voiceName === voice.name && <Check className="h-5 w-5 text-primary" />}
             </Label>
           ))}
-        </RadioGroup>
-        <Button variant="outline" size="sm" className="w-full">
+          {voices.length === 0 && (
+            <p className="text-sm text-muted-foreground py-2">Loading voices...</p>
+          )}
+        </div>
+        <Button variant="outline" size="sm" className="w-full" onClick={handlePreview}>
           <Volume2 className="mr-2 h-4 w-4" />
           Preview Voice
         </Button>
@@ -91,14 +120,14 @@ export function VoiceSettings({ speed, onSpeedChange, fontSize, onFontSizeChange
         <div className="flex items-center justify-between">
           <Label className="text-base font-medium">Voice Pitch</Label>
           <span className="text-sm text-muted-foreground">
-            {pitch < 40 ? 'Lower' : pitch > 60 ? 'Higher' : 'Normal'}
+            {pitchSlider < 40 ? 'Lower' : pitchSlider > 60 ? 'Higher' : 'Normal'}
           </span>
         </div>
         <Slider
-          value={[pitch]}
+          value={[pitchSlider]}
           max={100}
           step={1}
-          onValueChange={([value]) => setPitch(value)}
+          onValueChange={([v]) => onPitchChange(v / 50)}
           aria-label="Voice pitch"
         />
         <div className="flex justify-between text-xs text-muted-foreground">

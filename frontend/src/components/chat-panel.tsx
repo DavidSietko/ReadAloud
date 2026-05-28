@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from 'react'
-import { Send, Mic, MicOff, Sparkles } from 'lucide-react'
+import { Send, Mic, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { api } from '@/lib/api'
+import type { ChatMessage } from '@/lib/api'
 
 interface Message {
   id: string
@@ -15,27 +17,29 @@ interface Message {
 const suggestedQuestions = [
   'What does this passage mean?',
   'Can you explain that word?',
-  'Read that part again',
   'Tell me about the author',
+  'What themes appear here?',
 ]
 
 interface ChatPanelProps {
   bookTitle: string
+  bookId: number
+  bookContext: string
 }
 
-export function ChatPanel({ bookTitle }: ChatPanelProps) {
+export function ChatPanel({ bookTitle, bookId, bookContext }: ChatPanelProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
-      id: '1',
+      id: 'greeting',
       role: 'assistant',
       content: `Hi! I'm your reading companion for "${bookTitle}". Feel free to ask me anything about the story, vocabulary, or just chat while we read together.`,
       timestamp: new Date(),
     },
   ])
   const [input, setInput] = useState('')
-  const [isListening, setIsListening] = useState(false)
-  const [isTyping, setIsTyping] = useState(false)
+  const [isStreaming, setIsStreaming] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -43,39 +47,72 @@ export function ChatPanel({ bookTitle }: ChatPanelProps) {
     }
   }, [messages])
 
-  const handleSend = () => {
-    if (!input.trim()) return
+  const handleSend = async (text?: string) => {
+    const userText = (text ?? input).trim()
+    if (!userText || isStreaming) return
 
-    const userMessage: Message = {
+    setInput('')
+
+    const userMsg: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: input,
+      content: userText,
       timestamp: new Date(),
     }
+    setMessages(prev => [...prev, userMsg])
 
-    setMessages((prev) => [...prev, userMessage])
-    setInput('')
-    setIsTyping(true)
+    // Build history from all messages except the initial greeting
+    const history: ChatMessage[] = messages
+      .filter(m => m.id !== 'greeting')
+      .map(m => ({ role: m.role, content: m.content }))
+    history.push({ role: 'user', content: userText })
 
-    setTimeout(() => {
-      const responses = [
-        "That's a great question! This passage explores the duality of human experience. The author uses parallel structure to emphasise how contradictory life can feel.",
-        "I'd be happy to help! Would you like more context about that word or phrase?",
-        'Of course! Let me re-read that section for you. I\'ll slow down a bit so you can follow along.',
-        'The author was writing this as a commentary on social inequality. Would you like to know more about the historical context?',
-      ]
+    const assistantId = (Date.now() + 1).toString()
+    setMessages(prev => [
+      ...prev,
+      { id: assistantId, role: 'assistant', content: '', timestamp: new Date() },
+    ])
+    setIsStreaming(true)
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: responses[Math.floor(Math.random() * responses.length)],
-          timestamp: new Date(),
-        },
-      ])
-      setIsTyping(false)
-    }, 1500)
+    abortRef.current = new AbortController()
+
+    try {
+      const res = await api.ai.chat(
+        { book_id: bookId, message: userText, book_context: bookContext, history },
+        abortRef.current.signal,
+      )
+      if (!res.ok) throw new Error(`API error ${res.status}`)
+
+      const reader = res.body!.getReader()
+      const decoder = new TextDecoder()
+      let accumulated = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        const chunk = decoder.decode(value, { stream: true })
+        for (const line of chunk.split('\n')) {
+          if (!line.startsWith('data: ')) continue
+          const data = line.slice(6)
+          if (data === '[DONE]') break
+          accumulated += data
+          setMessages(prev =>
+            prev.map(m => m.id === assistantId ? { ...m, content: accumulated } : m)
+          )
+        }
+      }
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'AbortError') return
+      setMessages(prev =>
+        prev.map(m =>
+          m.id === assistantId
+            ? { ...m, content: 'Sorry, something went wrong. Please try again.' }
+            : m
+        )
+      )
+    } finally {
+      setIsStreaming(false)
+    }
   }
 
   return (
@@ -105,7 +142,7 @@ export function ChatPanel({ bookTitle }: ChatPanelProps) {
                     : 'bg-muted text-foreground'
                 }`}
               >
-                <p className="text-sm leading-relaxed">{message.content}</p>
+                <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
                 <p
                   className={`mt-1 text-xs ${
                     message.role === 'user' ? 'text-primary-foreground/70' : 'text-muted-foreground'
@@ -117,7 +154,7 @@ export function ChatPanel({ bookTitle }: ChatPanelProps) {
             </div>
           ))}
 
-          {isTyping && (
+          {isStreaming && messages[messages.length - 1]?.content === '' && (
             <div className="flex gap-3">
               <Avatar className="h-8 w-8 shrink-0">
                 <AvatarFallback className="bg-primary text-primary-foreground">AI</AvatarFallback>
@@ -146,7 +183,8 @@ export function ChatPanel({ bookTitle }: ChatPanelProps) {
               variant="outline"
               size="sm"
               className="h-auto py-1.5 text-xs"
-              onClick={() => setInput(question)}
+              onClick={() => handleSend(question)}
+              disabled={isStreaming}
             >
               {question}
             </Button>
@@ -164,12 +202,12 @@ export function ChatPanel({ bookTitle }: ChatPanelProps) {
         >
           <Button
             type="button"
-            variant={isListening ? 'default' : 'outline'}
+            variant="outline"
             size="icon"
-            onClick={() => setIsListening(!isListening)}
-            aria-label={isListening ? 'Stop listening' : 'Start voice input'}
+            aria-label="Voice input (coming soon)"
+            disabled
           >
-            {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+            <Mic className="h-4 w-4" />
           </Button>
           <Input
             value={input}
@@ -177,8 +215,9 @@ export function ChatPanel({ bookTitle }: ChatPanelProps) {
             placeholder="Ask your reading companion…"
             className="flex-1"
             aria-label="Message input"
+            disabled={isStreaming}
           />
-          <Button type="submit" size="icon" disabled={!input.trim()} aria-label="Send message">
+          <Button type="submit" size="icon" disabled={!input.trim() || isStreaming} aria-label="Send message">
             <Send className="h-4 w-4" />
           </Button>
         </form>
